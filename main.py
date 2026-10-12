@@ -19,6 +19,7 @@ import queue
 import sys
 import threading
 import traceback
+import tkinter as tk
 from tkinter import messagebox
 
 import customtkinter as ctk
@@ -41,7 +42,8 @@ import troubleshoot
 from i18n import tr, tx
 from ui_kit import (C, FONTS, init_fonts, make_button, make_chip, make_card, action_row, label, spacer, clear,
                     ring_image, load_logo, WrapLabel, heading, emoji_image, split_icon, app_icon, badge,
-                    hero_image, splash_image, number_badge, wide, set_text_width)
+                    hero_image, splash_image, number_badge, wide, set_text_width,
+                    set_scale, px, tk_font, tk_image)
 from utils import format_size, is_admin, relaunch_as_admin, resource_path, open_url, open_system_tool
 
 APP_NAME = "Polo Optimizer"
@@ -53,39 +55,51 @@ APP_AUTHOR_DETAIL = ("นักเรียนชั้น ม.6 โรงเร
 
 # ---------- เมนูด้านซ้าย ----------
 
-class NavItem(ctk.CTkFrame):
-    """ปุ่มเมนูด้านซ้าย 1 อัน มีแถบสีบอกหน้าที่เปิดอยู่ + ชื่อหน้า + คำอธิบายสั้น ๆ ใต้ชื่อ"""
+class NavItem(tk.Frame):
+    """ปุ่มเมนูด้านซ้าย 1 อัน: แถบสีบอกหน้าที่เปิดอยู่ + ไอคอนเส้น + ชื่อหน้า + คำอธิบายสั้น ๆ ใต้ชื่อ
+    ใช้ widget ธรรมดาของ tkinter (ไม่ใช่ customtkinter) เพราะตอนลากย่อขยายหน้าต่าง Windows สั่งวาดทุกชิ้นใหม่
+    ปุ่มเมนูแบบ customtkinter 9 ปุ่มใช้เวลาวาดรวมราว 36 ms ต่อครั้ง ทำให้กระตุก แบบธรรมดาวาดเร็วกว่ามาก
+    ขนาดและฟอนต์คูณค่าขยายจอเองผ่าน px() / tk_font() ใน ui_kit"""
 
     def __init__(self, master, title, desc, command, compact=False):
         """สร้างปุ่มเมนู และผูกการคลิก/เอาเมาส์ชี้ ให้ทั้งกรอบและข้อความข้างใน
-        ถ้าชื่อขึ้นต้นด้วยอีโมจิ จะแสดงเป็นไอคอนเส้นด้านซ้ายแทน (เทาตอนปกติ ฟ้าตอนเป็นหน้าที่เปิดอยู่)"""
-        super().__init__(master, fg_color="transparent", corner_radius=10, cursor="hand2")
+        ถ้าชื่อขึ้นต้นด้วยอีโมจิ จะแสดงเป็นไอคอนเส้นด้านซ้าย (เทาตอนปกติ ขาวตอนชี้ ฟ้าตอนเป็นหน้าที่เปิดอยู่)"""
+        super().__init__(master, bg=C["sidebar"], cursor="hand2", highlightthickness=0, bd=0)
         self.active = False
         self.command = command
-        self.icon_label = None
-        self.bar = ctk.CTkFrame(self, width=4, height=30, corner_radius=2, fg_color="transparent")
-        self.bar.pack(side="left", padx=(6, 0))
+        self.bar = tk.Frame(self, bg=C["sidebar"], width=px(4), highlightthickness=0, bd=0)
+        self.bar.pack(side="left", fill="y", pady=px(8))
         icon, title_text = split_icon(title)
-        self.icons = (emoji_image(icon, 20, C["muted"]), emoji_image(icon, 20, C["primary"]), emoji_image(icon, 20, C["text"])) if icon else None
-        image = self.icons[0] if self.icons else None
-        icon_label = ctk.CTkLabel(self, text="", image=image, width=30, cursor="hand2") if image else None
-        self.icon_label = icon_label
-        if icon_label:
-            icon_label.pack(side="left", padx=(10, 0))
-            title = title_text
-        text_box = ctk.CTkFrame(self, fg_color="transparent", cursor="hand2")
-        text_box.pack(side="left", fill="x", expand=True)
-        self.title = ctk.CTkLabel(text_box, text=title, font=FONTS["nav"], text_color=C["muted"], anchor="w", cursor="hand2")
-        self.title.pack(fill="x", padx=10, pady=(5, 0))
-        self.desc = ctk.CTkLabel(text_box, text=desc, font=FONTS["tiny"], text_color=C["faint"], anchor="w", cursor="hand2")
-        if not compact:  # จอเตี้ยไม่แสดงคำอธิบายใต้ชื่อ เมนูจะได้ไม่ล้นจอ
-            self.desc.pack(fill="x", padx=10, pady=(0, 5))
+        self.icons = None
+        self.icon_label = None
+        if icon:
+            images = [emoji_image(icon, 20, color) for color in (C["muted"], C["primary"], C["text"])]
+            if all(images):
+                self.icons = [tk_image(img, 20) for img in images]  # ต้องเก็บไว้ ไม่งั้นรูปหาย
+                self.icon_label = tk.Label(self, image=self.icons[0], bg=C["sidebar"], cursor="hand2", bd=0)
+                self.icon_label.pack(side="left", padx=(px(12), 0))
+                title = title_text
+        self.text_box = tk.Frame(self, bg=C["sidebar"], cursor="hand2", highlightthickness=0, bd=0)
+        self.text_box.pack(side="left", fill="x", expand=True)
+        self.title = tk.Label(self.text_box, text=title, font=tk_font("nav"), fg=C["muted"], bg=C["sidebar"],
+                              anchor="w", cursor="hand2", bd=0)
+        self.desc = tk.Label(self.text_box, text=desc, font=tk_font("tiny"), fg=C["faint"], bg=C["sidebar"],
+                             anchor="w", cursor="hand2", bd=0)
+        if compact:  # จอเตี้ยไม่แสดงคำอธิบายใต้ชื่อ เมนูจะได้ไม่ล้นจอ
+            self.title.pack(fill="x", padx=px(10), pady=px(9))
         else:
-            self.title.pack_configure(pady=(7, 7))
-        for widget in (self, self.bar, text_box, self.title, self.desc) + ((icon_label,) if icon_label else ()):
+            self.title.pack(fill="x", padx=px(10), pady=(px(7), 0))
+            self.desc.pack(fill="x", padx=px(10), pady=(0, px(7)))
+        widgets = [self, self.bar, self.text_box, self.title, self.desc] + ([self.icon_label] if self.icon_label else [])
+        for widget in widgets:
             widget.bind("<Button-1>", lambda _e: self.command())
             widget.bind("<Enter>", lambda _e: self._hover(True))
             widget.bind("<Leave>", self._on_leave)
+
+    def _paint(self, bg):
+        """เปลี่ยนสีพื้นของทุกชิ้นในปุ่มพร้อมกัน (widget ธรรมดาไม่มีพื้นโปร่งใส ต้องตั้งทีละชิ้น)"""
+        for widget in (self, self.text_box, self.title, self.desc) + ((self.icon_label,) if self.icon_label else ()):
+            widget.configure(bg=bg)
 
     def _on_leave(self, _event):
         """ตอนเมาส์ออก เช็กก่อนว่าออกจากปุ่มจริง ไม่ได้แค่ย้ายไปอยู่บนข้อความข้างใน"""
@@ -96,19 +110,20 @@ class NavItem(ctk.CTkFrame):
 
     def _hover(self, on):
         """เปลี่ยนสีพื้นและสีตัวอักษรตอนเอาเมาส์ชี้ (ถ้าเป็นหน้าที่เปิดอยู่จะคงสีเดิม)"""
-        if not self.active:
-            self.configure(fg_color=C["card"] if on else "transparent")
-            self.title.configure(text_color=C["text"] if on else C["muted"])
-            if self.icon_label:
-                self.icon_label.configure(image=self.icons[2] if on else self.icons[0])
+        if self.active:
+            return
+        self._paint(C["card"] if on else C["sidebar"])
+        self.title.configure(fg=C["text"] if on else C["muted"])
+        if self.icon_label:
+            self.icon_label.configure(image=self.icons[2] if on else self.icons[0])
 
     def set_active(self, active):
         """ไฮไลต์หน้าที่เปิดอยู่: พื้นน้ำเงินเข้ม แถบสีหลักด้านซ้าย และตัวอักษรสีขาว"""
         self.active = active
-        self.configure(fg_color=C["nav_active"] if active else "transparent")
-        self.bar.configure(fg_color=C["primary"] if active else "transparent")
-        self.title.configure(text_color="#ffffff" if active else C["muted"])
-        self.desc.configure(text_color="#8fa9d6" if active else C["faint"])
+        self._paint(C["nav_active"] if active else C["sidebar"])
+        self.bar.configure(bg=C["primary"] if active else C["sidebar"])
+        self.title.configure(fg="#ffffff" if active else C["muted"])
+        self.desc.configure(fg="#8fa9d6" if active else C["faint"])
         if self.icon_label:
             self.icon_label.configure(image=self.icons[1] if active else self.icons[0])
 
@@ -456,6 +471,10 @@ class HomePage(Page):
         สีเปลี่ยนตามระดับ: ปกติน้ำเงิน, เกิน 75% เหลือง, ไดรฟ์เต็มเกิน 90% แดง
         ถ้าหน้านี้ถูกลบไปแล้ว (เช่นตอนเปลี่ยนภาษา) จะหยุดวนเอง"""
         if not self.winfo_exists():
+            return
+        if not self._parent_frame.winfo_ismapped():
+            # ไม่ได้เปิดหน้านี้อยู่ ไม่ต้องวาดเกจ (ประหยัดงานของหน้าจอ) แค่นัดมาเช็กใหม่
+            self.after(1500, self.update_gauges)
             return
         try:
             u = system_info.get_usage()
@@ -1644,13 +1663,8 @@ class App(ctk.CTk):
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        # ครั้งแรกที่เปิดโปรแกรมให้เริ่มที่หน้าแนะนำโปรแกรม ครั้งต่อ ๆ ไปเริ่มที่หน้าแรกเลย
-        start = "home" if self.config_data.get("welcome_seen") else "welcome"
-        if not self.config_data.get("welcome_seen"):
-            try:
-                self.config_data = config.save_config({"welcome_seen": True})
-            except Exception:
-                pass
+        # เปิดโปรแกรมมาเริ่มที่หน้า "เริ่มต้น" (แนะนำโปรแกรม + ผู้พัฒนา + วิธีใช้) ทุกครั้ง
+        start = "welcome"
         if splash:
             self.withdraw()
             self._show_splash(lambda: self._build_ui(start))
@@ -1658,6 +1672,64 @@ class App(ctk.CTk):
             self._build_ui(start)
         self.after(50, self._process_ui_queue)
         self.after(300, self._set_icon)
+        self._last_size = None
+        self._resize_job = None
+        self.bind("<Configure>", self._on_window_configure, add="+")
+        self.after(100, self._disable_full_redraw)
+
+    def _disable_full_redraw(self):
+        """ปิดการวาดใหม่ทั้งหน้าต่างทุกครั้งที่ขนาดเปลี่ยน
+        หน้าต่างของ Tk ตั้งค่าคลาสไว้เป็น CS_HREDRAW | CS_VREDRAW แปลว่าย่อ/ขยายนิดเดียว Windows ก็สั่งวาดทุกชิ้นใหม่หมด
+        ถ้าเอา 2 ค่านี้ออก Windows จะวาดใหม่เฉพาะส่วนที่เปลี่ยนจริง (วัดได้จาก 34 ms เหลือ 12 ms ต่อครั้ง)
+        ถ้าทำไม่ได้ (เช่น API ของ Windows เปลี่ยน) ก็แค่ข้ามไป โปรแกรมยังทำงานได้ตามปกติ"""
+        try:
+            user32 = ctypes.windll.user32
+            user32.GetClassLongPtrW.restype = ctypes.c_ssize_t
+            user32.GetClassLongPtrW.argtypes = [ctypes.c_void_p, ctypes.c_int]
+            user32.SetClassLongPtrW.restype = ctypes.c_ssize_t
+            user32.SetClassLongPtrW.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_ssize_t]
+            gcl_style, cs_vredraw, cs_hredraw = -26, 0x1, 0x2
+            for hwnd in {self.winfo_id(), user32.GetParent(self.winfo_id())}:
+                if hwnd:
+                    style = user32.GetClassLongPtrW(hwnd, gcl_style)
+                    user32.SetClassLongPtrW(hwnd, gcl_style, style & ~(cs_hredraw | cs_vredraw))
+        except Exception:
+            pass
+
+    # ---------- ย่อ-ขยายหน้าต่างให้ลื่น ----------
+
+    def _on_window_configure(self, event):
+        """ตอนผู้ใช้ลากขอบหน้าต่าง/ลากไปชิดขอบจอ customtkinter จะวาดกรอบมุมโค้งทุกชิ้นใหม่ทุกครั้งที่ขนาดเปลี่ยน
+        (วัดได้ราว 150-190 ms ต่อครั้ง ลากทีหนึ่งเกิดหลายสิบครั้ง เลยดูค้าง)
+        วิธีแก้: ระหว่างที่ขนาดกำลังเปลี่ยน ซ่อนเนื้อหาของหน้าไว้ก่อน (เมนูกับแถบบนยังอยู่) แล้วค่อยแสดงกลับ
+        เมื่อหยุดลากเกิน 150 ms เนื้อหาจะถูกวาดใหม่แค่ครั้งเดียว
+        ผูกกับหน้าต่างหลักแต่ widget ลูกทุกตัวก็ส่ง event นี้มาด้วย เลยต้องกรองเอาเฉพาะของหน้าต่างหลัก"""
+        if event.widget is not self or not hasattr(self, "page_host"):
+            return
+        size = (event.width, event.height)
+        if self._last_size is None:
+            self._last_size = size
+            return
+        if size == self._last_size:
+            return  # แค่ย้ายตำแหน่งหน้าต่าง ไม่ต้องทำอะไร
+        self._last_size = size
+        try:
+            if self.page_host.winfo_ismapped():
+                self.hide_search()
+                self.page_host.grid_remove()
+            if self._resize_job:
+                self.after_cancel(self._resize_job)
+            self._resize_job = self.after(150, self._end_resize)
+        except Exception:
+            pass
+
+    def _end_resize(self):
+        """หยุดลากแล้ว: แสดงเนื้อหากลับมา (วาดใหม่ครั้งเดียวตามขนาดสุดท้าย)"""
+        self._resize_job = None
+        try:
+            self.page_host.grid()
+        except Exception:
+            pass
 
     def _fit_to_screen(self):
         """ตั้งขนาดหน้าต่างให้พอดีจอของแต่ละเครื่อง (เครื่องคนอื่นอาจเป็นโน้ตบุ๊กจอ 1366x768 ที่ขยาย 125%)
@@ -1770,34 +1842,46 @@ class App(ctk.CTk):
 
     def _build_sidebar(self):
         """สร้างเมนูด้านซ้าย: โลโก้ + ชื่อโปรแกรม, ปุ่มเมนู 8 หน้า และด้านล่างเป็นปุ่มเปลี่ยนภาษา สิทธิ์ Admin และเวอร์ชัน"""
-        side = ctk.CTkFrame(self, fg_color=C["sidebar"], corner_radius=0, width=250)
-        side.grid(row=0, column=0, rowspan=2, sticky="nsw")
+        # เมนูซ้ายทั้งหมดใช้ widget ธรรมดาของ tkinter (ไม่ใช่ customtkinter) เพราะตอนลากย่อขยายหน้าต่าง
+        # Windows สั่งวาดทุกชิ้นที่มองเห็นใหม่ทุกครั้ง แบบ customtkinter วาดช้ากว่ามาก (วัดได้ราว 36 ms ต่อครั้ง)
+        # widget ธรรมดาไม่ขยายตามค่าขยายจอให้เอง เลยตั้ง set_scale() ไว้ แล้วใช้ px()/tk_font() คูณขนาดให้
+        try:
+            set_scale(self._get_window_scaling())
+        except Exception:
+            set_scale(1.0)
+        width = px(250)
+        side = tk.Frame(self, bg=C["sidebar"], width=width, highlightthickness=0, bd=0)
+        side.grid(row=0, column=0, sticky="nsw")
         side.grid_propagate(False)
+        side.pack_propagate(False)
         self.sidebar = side
 
-        brand = ctk.CTkFrame(side, fg_color="transparent")
-        brand.pack(fill="x", padx=18, pady=(14, 10) if self.compact else (22, 18))
+        brand = tk.Frame(side, bg=C["sidebar"], highlightthickness=0, bd=0)
+        brand.pack(fill="x", padx=px(18), pady=(px(14), px(10)) if self.compact else (px(22), px(18)))
         logo = load_logo(44)
         if logo:
-            ctk.CTkLabel(brand, text="", image=logo).pack(side="left", padx=(0, 10))
-        names = ctk.CTkFrame(brand, fg_color="transparent")
+            self._logo_photo = tk_image(logo, 44)  # ต้องเก็บไว้ ไม่งั้นรูปหาย
+            tk.Label(brand, image=self._logo_photo, bg=C["sidebar"], bd=0).pack(side="left", padx=(0, px(10)))
+        names = tk.Frame(brand, bg=C["sidebar"], highlightthickness=0, bd=0)
         names.pack(side="left", fill="x")
-        ctk.CTkLabel(names, text=APP_NAME, font=FONTS["logo"], text_color=C["text"], anchor="w").pack(fill="x")
-        ctk.CTkLabel(names, text=tr("ดูแลคอมให้จบในโปรแกรมเดียว", "Your all-in-one PC helper"), font=FONTS["tiny"],
-                     text_color=C["muted"], anchor="w").pack(fill="x")
+        tk.Label(names, text=APP_NAME, font=tk_font("logo"), fg=C["text"], bg=C["sidebar"], anchor="w", bd=0).pack(fill="x")
+        tk.Label(names, text=tr("ดูแลคอมให้จบในโปรแกรมเดียว", "Your all-in-one PC helper"), font=tk_font("tiny"),
+                 fg=C["muted"], bg=C["sidebar"], anchor="w", bd=0).pack(fill="x")
 
         self.nav_items = {}
         for key, title, desc, _cls in PAGES:
             item = NavItem(side, tx(title), tx(desc), lambda k=key: self.show_page(k), compact=self.compact)
-            item.pack(fill="x", padx=10, pady=1)
+            item.pack(fill="x", padx=px(10), pady=px(1))
             self.nav_items[key] = item
 
-        foot = ctk.CTkFrame(side, fg_color="transparent")
-        foot.pack(side="bottom", fill="x", padx=18, pady=12)
-        badge_text, badge_color = ((tr("● สิทธิ์ Admin พร้อมใช้งาน", "● Running as Admin"), C["ok"]) if self.admin
-                                   else (tr("● ไม่มีสิทธิ์ Admin", "● Not running as Admin"), C["warn"]))
-        ctk.CTkLabel(foot, text=badge_text, font=FONTS["tiny"], text_color=badge_color, anchor="w").pack(fill="x")
-        ctk.CTkLabel(foot, text=f"{APP_NAME} v{APP_VERSION}", font=FONTS["tiny"], text_color=C["faint"], anchor="w").pack(fill="x")
+        # สิทธิ์ Admin + เวอร์ชัน อยู่แถวล่างสุดคู่กับแถบสถานะ
+        foot = tk.Frame(self, bg=C["sidebar"], width=width, highlightthickness=0, bd=0)
+        foot.grid(row=1, column=0, sticky="nsew")
+        foot.grid_propagate(False)
+        self.sidefoot = foot
+        admin_text = "Admin" if self.admin else tr("ไม่มีสิทธิ์ Admin", "No Admin")
+        tk.Label(foot, text=f"●  {admin_text}   ·   v{APP_VERSION}", font=tk_font("tiny"),
+                 fg=C["ok"] if self.admin else C["warn"], bg=C["sidebar"], bd=0).place(x=px(18), rely=0.5, anchor="w")
 
     def _build_statusbar(self):
         """สร้างแถบสถานะด้านล่าง: ข้อความบอกว่ากำลังทำอะไร + แถบวิ่งตอนมีงานทำอยู่"""
@@ -2003,7 +2087,7 @@ class App(ctk.CTk):
             self.report_error(e)
         page = self.current or "home"
         self._generation += 1
-        for widget in (self.sidebar, self.content, self.statusbar, self.search_popup):
+        for widget in (self.sidebar, self.sidefoot, self.content, self.statusbar, self.search_popup):
             if widget is not None:
                 widget.destroy()
         self._build_ui(start_page=page)

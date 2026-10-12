@@ -61,6 +61,41 @@ def wide():
     return min(900, TEXT_WIDTH + 120)
 
 
+# ---------- ตัวช่วยสำหรับ widget ธรรมดาของ tkinter ----------
+# เมนูซ้ายใช้ widget ธรรมดา (วาดใหม่เร็วกว่า customtkinter มาก ตอนลากย่อขยายหน้าต่างจะได้ไม่กระตุก)
+# แต่ widget ธรรมดาไม่ขยายตามค่าขยายจอของ Windows ให้เอง (เช่นจอ 125%) เลยต้องคูณขนาดเองด้วย SCALE
+SCALE = 1.0
+_tk_fonts = {}
+
+
+def set_scale(scale):
+    """จำค่าขยายจอของ Windows (1.0 = 100%, 1.25 = 125%) ไว้ใช้กับ widget ธรรมดา"""
+    global SCALE
+    SCALE = scale or 1.0
+
+
+def px(value):
+    """แปลงขนาดแบบ customtkinter (ยังไม่ขยาย) เป็นพิกเซลจริงบนจอ"""
+    return int(round(value * SCALE))
+
+
+def tk_font(name):
+    """ฟอนต์สำหรับ widget ธรรมดา ขนาดเท่ากับฟอนต์ชื่อเดียวกันใน FONTS ที่ customtkinter แสดงจริง"""
+    if name not in _tk_fonts:
+        import tkinter.font as tkfont
+        base = FONTS[name]
+        _tk_fonts[name] = tkfont.Font(family=base.cget("family"), size=-px(abs(base.cget("size"))),
+                                      weight=base.cget("weight"))
+    return _tk_fonts[name]
+
+
+def tk_image(ctk_image, size):
+    """แปลง CTkImage เป็นรูปที่ tk.Label ใช้ได้ ขนาด size (ยังไม่ขยาย) แล้วขยายตามจอให้"""
+    from PIL import ImageTk
+    img = ctk_image._light_image.resize((px(size), px(size)), Image.LANCZOS)
+    return ImageTk.PhotoImage(img)
+
+
 def init_fonts():
     """สร้างฟอนต์ทั้งหมด (ต้องเรียกหลังสร้างหน้าต่างหลักแล้ว เพราะ tkinter สร้างฟอนต์ก่อนมีหน้าต่างไม่ได้)
     ตัวอักษรไทยของ Leelawadee UI ค่อนข้างเล็ก เลยใช้ขนาดใหญ่กว่าปกติ 1 ขั้นให้อ่านง่าย"""
@@ -266,8 +301,13 @@ def clear(frame):
 
 def ring_image(percent, color, size=110, thickness=11):
     """วาดวงแหวนแสดงเปอร์เซ็นต์ด้วย PIL แล้วคืนเป็น CTkImage
-    วาดใหญ่ 6 เท่าแล้วย่อเหลือ 2 เท่า ขอบวงจะเนียนและยังคมบนจอความละเอียดสูง ปลายเส้นวาดเป็นวงกลมให้ดูมน"""
-    k = 6
+    วาดใหญ่ 4 เท่าแล้วย่อเหลือ 2 เท่า ขอบวงจะเนียนและยังคมบนจอความละเอียดสูง ปลายเส้นวาดเป็นวงกลมให้ดูมน
+    จำรูปที่วาดแล้วไว้ (ปัดเปอร์เซ็นต์เป็นจำนวนเต็ม) เกจที่อัปเดตทุก 1.5 วินาทีจะได้ไม่ต้องวาดใหม่ทุกรอบ"""
+    percent = int(round(min(max(percent, 0), 100)))
+    key = ("ring", percent, color, size, thickness)
+    if key in _cache:
+        return _cache[key]
+    k = 4
     big, t = size * k, thickness * k
     img = Image.new("RGBA", (big, big), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
@@ -283,7 +323,8 @@ def ring_image(percent, color, size=110, thickness=11):
             y = center + radius * math.sin(math.radians(angle))
             draw.ellipse([x - t / 2, y - t / 2, x + t / 2, y + t / 2], fill=color)
     img = img.resize((size * 2, size * 2), Image.LANCZOS)
-    return ctk.CTkImage(light_image=img, dark_image=img, size=(size, size))
+    _cache[key] = ctk.CTkImage(light_image=img, dark_image=img, size=(size, size))
+    return _cache[key]
 
 
 def load_logo(size):
