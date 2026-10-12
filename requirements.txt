@@ -1,0 +1,9 @@
+# Keep this file ASCII only: pip reads it with the system code page, Thai text breaks it.
+
+# Runtime libraries
+customtkinter==6.0.0
+psutil==7.2.2
+pillow==12.3.0
+
+# Build-time only (not bundled into the .exe)
+pyinstaller==6.22.3

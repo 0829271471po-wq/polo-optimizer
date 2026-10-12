@@ -1,0 +1,11 @@
+# ไฟล์ที่สร้างใหม่ได้เองตอน build ไม่ต้องเก็บ
+.venv/
+__pycache__/
+build/
+build_setup_tmp/
+dist/
+dist_setup/
+release/
+*.spec
+version_info.txt
+assets/setup/
